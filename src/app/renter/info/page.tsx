@@ -1,5 +1,6 @@
 "use client";
 
+import { TReservation } from "@/app/admin/page";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -11,7 +12,11 @@ export default function RenterPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  async function submitForm() {
+  async function updateReservation() {
+    if (!validReservation) {
+      setErrorMessage("Reservation not found.");
+      return;
+    }
     if (name === "") {
       setErrorMessage("Name required.");
       return;
@@ -22,14 +27,17 @@ export default function RenterPage() {
       setErrorMessage("Invalid dates.");
       return;
     }
-    const { error } = await supabase.from("Reservations").insert({
-      name: name,
-      type: type,
-      charge: charge,
-      start_date: startDate,
-      end_date: endDate,
-      total: total,
-    });
+    const { error } = await supabase
+      .from("Reservations")
+      .update({
+        name: name,
+        type: type,
+        charge: charge,
+        start_date: startDate,
+        end_date: endDate,
+        total: total,
+      })
+      .eq("id", id);
     if (error) {
       console.log(error);
     } else {
@@ -44,6 +52,9 @@ export default function RenterPage() {
     { type: "van", charge: 300 },
   ];
 
+  const [id, setId] = useState(0);
+  const [searchName, setSearchName] = useState("");
+  const [validReservation, setValidReservation] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("");
   const [charge, setCharge] = useState(0);
@@ -51,7 +62,31 @@ export default function RenterPage() {
   const [endDate, setEndDate] = useState("");
   const [days, setDays] = useState(0);
   const [total, setTotal] = useState(0);
+  const [searchErrorMessage, setSearchErrorMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [reservation, setReservation] = useState<TReservation>();
+
+  async function fetchReservation() {
+    const { data } = await supabase
+      .from("Reservations")
+      .select()
+      .eq("name", searchName);
+    if (data && data.length > 0) {
+      setValidReservation(true);
+      setSearchErrorMessage("");
+      const res: TReservation = data[0];
+      setReservation(res);
+      setId(res.id);
+      setName(res.name);
+      setType(res.type);
+      setCharge(res.charge);
+      setStartDate(res.start_date);
+      setEndDate(res.end_date);
+    } else {
+      setValidReservation(false);
+      setSearchErrorMessage("Name not found");
+    }
+  }
 
   function handleSelect(event: React.ChangeEvent<HTMLSelectElement>) {
     const selectedType = carTypes.find(
@@ -76,7 +111,7 @@ export default function RenterPage() {
         setTotal(daysDiff * charge);
       }
     }
-  }, [type, startDate, endDate, charge]);
+  }, [type, startDate, endDate, charge, reservation]);
   return (
     <div>
       <button
@@ -85,9 +120,24 @@ export default function RenterPage() {
       >
         Back
       </button>
-      <div className="flex mx-auto container justify-center h-screen items-center flex-col space-y-14">
-        <div className="flex flex-col space-y-2">
-          <h1 className="text-xl text-white text-center">Request a rental</h1>
+      <div className="flex mx-auto container justify-center h-screen items-center flex-col">
+        <h1 className="text-xl text-white text-center">Manage a rental</h1>
+        <div className="flex space-x-2 mt-2">
+          <input
+            className="px-2 w-full"
+            placeholder="Name"
+            value={searchName}
+            onChange={(event) => setSearchName(event.target.value)}
+          />
+          <button
+            className="bg-white px-2 rounded-md w-20 ml-auto"
+            onClick={() => fetchReservation()}
+          >
+            Search
+          </button>
+        </div>
+        <p className="text-red-400">{searchErrorMessage}</p>
+        <div className="flex flex-col space-y-2 mt-14 ">
           <form>
             <div className="flex flex-col space-y-2">
               <div className="grid grid-cols-2 gap-x-2">
@@ -154,9 +204,9 @@ export default function RenterPage() {
             <p className="text-red-400">{errorMessage}</p>
             <button
               className="bg-white px-2 rounded-md w-20 ml-auto"
-              onClick={() => submitForm()}
+              onClick={() => updateReservation()}
             >
-              Submit
+              Update
             </button>
           </div>
         </div>
